@@ -1,0 +1,120 @@
+{
+  // Claude Code tool permissions for this repository.
+  //
+  // Entries in `allow` pre-approve tool invocations so Claude Code doesn't
+  // prompt for confirmation on every use. Only pre-approve things you trust
+  // Claude Code to run unattended — anything destructive or that touches
+  // external state should be left out (or removed if added by default).
+  //
+  // The defaults below cover common dev workflow: git, GitHub CLI, Node/npm,
+  // Python testing/linting, basic shell utilities, web search. Anything
+  // cloud-specific, IaC-specific, or MCP-specific is commented out — uncomment
+  // the lines you actually use.
+  //
+  // Docs: https://docs.claude.com/claude-code/settings
+
+  "permissions": {
+    "allow": [
+      // ── Git (read + write) ───────────────────────────────────────────────
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git restore:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git fetch:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git rebase:*)",
+      "Bash(git branch:*)",
+      "Bash(git -C:*)",
+
+      // ── GitHub CLI ───────────────────────────────────────────────────────
+      "Bash(gh:*)",
+
+      // ── Node.js ──────────────────────────────────────────────────────────
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+
+      // ── Python: generic test + lint runners ──────────────────────────────
+      // These assume `pytest` and `ruff` are on PATH (system, pipx, or
+      // activated venv). If you use poetry, run `poetry shell` first or
+      // prefix commands with `poetry run`.
+      "Bash(python -m pytest:*)",
+      "Bash(python3 -m:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+
+      // ── Python: uv + project-local virtualenv paths ─────────────────────
+      // Uncomment if your project uses uv or a `.venv/` directory at the
+      // repo root (the convention used by `uv venv`, `python -m venv .venv`,
+      // etc). The `uv` entry covers `uv run`, `uv sync`, `uv pip`, etc.
+      // "Bash(uv:*)",
+      // "Bash(.venv/bin/python:*)",
+      // "Bash(.venv/bin/pytest:*)",
+      // "Bash(.venv/bin/pip:*)",
+
+      // ── Shell utilities (read-only / safe) ───────────────────────────────
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+
+      // ── Cloud CLIs (opt in per project) ──────────────────────────────────
+      // AWS and Terraform commands can be destructive. Uncomment only if
+      // you're working in a cloud project AND you trust Claude Code to run
+      // these without confirmation. Consider scoping more tightly (e.g.
+      // `Bash(aws s3 ls:*)` instead of all of `aws:*`) for production work.
+      // "Bash(aws:*)",
+      // "Bash(terraform:*)",
+
+      // ── Web ──────────────────────────────────────────────────────────────
+      "WebSearch"
+
+      // ── Linear MCP (opt in per project) ──────────────────────────────────
+      // Uncomment if you have the Linear MCP server connected AND want
+      // Claude Code to query/update your Linear workspace without prompting.
+      // The block below pre-approves the full read+write surface; trim to
+      // just the list_*/get_* entries for read-only access.
+      //
+      // "mcp__claude_ai_Linear__list_issues",
+      // "mcp__claude_ai_Linear__list_projects",
+      // "mcp__claude_ai_Linear__list_milestones",
+      // "mcp__claude_ai_Linear__list_comments",
+      // "mcp__claude_ai_Linear__list_cycles",
+      // "mcp__claude_ai_Linear__list_documents",
+      // "mcp__claude_ai_Linear__list_issue_labels",
+      // "mcp__claude_ai_Linear__list_issue_statuses",
+      // "mcp__claude_ai_Linear__list_project_labels",
+      // "mcp__claude_ai_Linear__list_teams",
+      // "mcp__claude_ai_Linear__list_users",
+      // "mcp__claude_ai_Linear__get_issue",
+      // "mcp__claude_ai_Linear__get_issue_status",
+      // "mcp__claude_ai_Linear__get_milestone",
+      // "mcp__claude_ai_Linear__get_project",
+      // "mcp__claude_ai_Linear__get_team",
+      // "mcp__claude_ai_Linear__get_user",
+      // "mcp__claude_ai_Linear__get_document",
+      // "mcp__claude_ai_Linear__get_attachment",
+      // "mcp__claude_ai_Linear__search_documentation",
+      // "mcp__claude_ai_Linear__extract_images",
+      // "mcp__claude_ai_Linear__save_issue",
+      // "mcp__claude_ai_Linear__save_milestone",
+      // "mcp__claude_ai_Linear__save_project",
+      // "mcp__claude_ai_Linear__save_comment",
+      // "mcp__claude_ai_Linear__create_attachment",
+      // "mcp__claude_ai_Linear__create_document",
+      // "mcp__claude_ai_Linear__create_issue_label",
+      // "mcp__claude_ai_Linear__update_document"
+    ]
+  }
+}
