@@ -21,7 +21,7 @@ class Config:
     # API Keys
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     linear_mcp_token: str = os.getenv("LINEAR_MCP_TOKEN", "")
-    github_mcp_token: str = os.getenv("GITHUB_MCP_TOKEN", "")
+    github_mcp_token: str = os.getenv("GITHUB_MCP_PAT", "")
 
     # Model and output settings
     model: str = os.getenv("MODEL", "claude-sonnet-4-6")
