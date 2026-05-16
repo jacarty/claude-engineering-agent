@@ -25,7 +25,7 @@ class Config:
 
     # Model and output settings
     model: str = os.getenv("MODEL", "claude-sonnet-4-6")
-    max_tokens: int = int(os.getenv("MAX_TOKENS", "16384"))
+    max_tokens: int = int(os.getenv("MAX_TOKENS", "4096"))
     betas: list[str] = field(default_factory=lambda: ["mcp-client-2025-11-20"])
 
     def __post_init__(self):
