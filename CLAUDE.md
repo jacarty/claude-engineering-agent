@@ -1,16 +1,14 @@
-# [Project Name] — Claude Code Context
+# Claude Engineering Agent — Claude Code Context
 
 ## Project Overview
 
-<!-- One paragraph: what does this project do? -->
+An adaptive research agent that reads Linear issues and produces contextualised technical briefs using Claude's MCP Connector, web search, and the repo's own skills/templates. Built as a Python CLI.
 
-**PRD:** `docs/prd/v1.0-prd.md`
-**Build Guide:** `docs/build-guides/v1.0-build-guide.md`
+**PRD:** `docs/prd/v1.0-prd.md` (not yet created)
+**Build Guide:** `docs/build-guides/v1.0-build-guide.md` (not yet created)
 **Process:** `docs/process.md` — branch/PR cadence, pre-commit + pre-PR agent gates, trivial-change fast path, phase-boundary rituals. Read this before any feature work.
 
-<!-- If using issue tracking, add details here:
-**Issue Tracking:** [Tool] — [project/board name], [team/key]
--->
+**Issue Tracking:** Linear — project "AI and Machine Learning", team "James", key `JAM`. Parent issue: JAM-244.
 
 ---
 
@@ -22,80 +20,118 @@ These are non-negotiable. They apply to every session regardless of scope.
 - **Before pushing, verify only intended files are staged.** Run `git status` and `git diff --cached --name-only` before every commit. Do not include unrelated config files, lockfile churn, or editor artefacts.
 - **Run lint + tests + build locally before opening a PR.** Do not rely on CI to catch issues. The pre-PR gates in `docs/process.md` exist to shift catches earlier, not replace local validation.
 - **Read `docs/process.md` before any feature work.** It defines the agent cadence, trivial-change fast path, and fold timing. Follow it.
+- **Never commit `.env` or any file containing API keys/tokens.** The `.gitignore` and `.claudeignore` are configured to prevent this, but check anyway.
+- **Use `uv` for all package management.** No pip, no poetry. `uv sync` to install, `uv add` to add dependencies, `uv run` to execute.
 
-<!-- Add project-specific rules below as you discover them. Examples:
-- Do not introduce [library X] — this codebase uses [library Y] for that purpose.
-- Terraform must apply before Amplify builds when env vars change.
-- Always use MCP servers (Linear, GitHub) over manual API calls when available.
--->
+---
 
-<!-- TDD mode (activate per-project):
-When the build guide or user specifies TDD:
-1. Write a failing test that captures the acceptance criteria
-2. Implement minimum code to make it pass
-3. Run the full test suite and iterate until green
-4. Proceed to the next requirement
-Do not skip step 1. The test is the specification. -->
-
-<!-- High-level architecture diagram or description -->
+## Architecture
 
 ```
-[Frontend]
-    → [API Layer]
-    → [Compute]
-    → [Data Store]
+Python CLI (src/claude_engineering_agent/)
+  → Claude API (direct, beta mcp-client-2025-11-20)
+  → MCP Connector (server-side):
+      - Linear MCP (mcp.linear.app/mcp) — read issues, post comments, update status
+      - GitHub MCP (api.githubcopilot.com/mcp) — search code, read files, create branches
+  → Claude server tool:
+      - Web search (web_search_20250305)
+  → Agentic loop (call until stop_reason is end_turn)
+  → Structured research brief posted to Linear
 ```
 
-<!-- Key technology choices -->
+### Key architecture decision
 
-- **Frontend:**
-- **Auth:**
-- **API:**
-- **Compute:**
-- **Persistence:**
-- **IaC:**
-- **CI/CD:**
+Uses the **MCP Connector** (server-side) rather than client-side MCP. The `mcp_servers` parameter in `messages.create()` lets Anthropic's infrastructure handle connection, tool discovery, and execution. No MCP Python SDK, no session management, no tool wrappers needed.
 
-<!-- Environment details -->
+The repo's own skills (`.claude/skills/`) and agents (`.claude/agents/`) are read via the GitHub MCP server — no local filesystem tool required.
 
-<!-- Example:
-**Cloud Account:** 123456789012
-**Region:** eu-west-1
-**GitHub Repo:** user/repo
--->
+### Key technology choices
+
+- **Language:** Python 3.12+
+- **Package manager:** uv
+- **API client:** anthropic (Python SDK)
+- **MCP integration:** MCP Connector (server-side via `mcp_servers` parameter)
+- **CLI:** `python -m claude_engineering_agent` with argparse
+- **Config:** python-dotenv for environment variables
+- **Testing:** pytest
+- **Linting:** ruff
+
+### Environment
+
+- **GitHub Repo:** jacarty/claude-engineering-agent
+- **Linear Project:** AI and Machine Learning, team James
+- **Parent Issue:** JAM-244
 
 ---
 
 ## Repository Structure
 
 ```
-project/
+claude-engineering-agent/
 ├── CLAUDE.md                        # This file
+├── README.md                        # Public-facing project documentation
+├── pyproject.toml                   # Python project configuration (uv)
+├── .env.example                     # Required environment variables template
+├── .claude/
+│   ├── agents/                      # Claude Code subagents (9 agents)
+│   ├── commands/                    # Claude Code custom commands
+│   ├── skills/                      # Thinking/writing frameworks (11 skills)
+│   └── settings.json                # Claude Code tool permissions
+├── .githooks/                       # Local git hooks (secret scanning, conventional commits)
+├── .github/                         # GitHub templates (PR, issues, CODEOWNERS)
 ├── docs/
-│   ├── prd/                         # Product requirements
-│   ├── build-guides/                # Implementation guides
-│   ├── process.md                   # Development process and agent cadence
-│   ├── tech-debt.md                 # Known gaps and drift
-│   └── decisions/                   # Architecture Decision Records
-├── ...                              # Project-specific structure
+│   ├── decisions/                   # Architecture Decision Records
+│   └── process.md                   # Development process and agent cadence
+├── src/
+│   └── claude_engineering_agent/
+│       ├── __init__.py
+│       ├── __main__.py              # CLI entry point
+│       ├── config.py                # MCP server + tool configuration
+│       ├── runner.py                # Agentic loop (call API until done)
+│       └── parsing.py               # Response block extraction
+└── tests/
 ```
-
-<!-- Document your project's directory structure here.
-     Keep this updated — the doc-generator agent refreshes it at phase boundaries. -->
 
 ---
 
 ## Key Patterns
 
-<!-- Document the important architectural patterns, conventions, and contracts
-     that someone working on the codebase needs to know. Examples:
+### MCP Connector configuration
 
-- How auth tokens flow through the system
-- How errors are structured and propagated
-- Shared module/helper contracts
-- Naming conventions for files, functions, routes
-- Data model patterns (e.g. DynamoDB single-table design, SQL schema conventions)
--->
+MCP servers and tools are configured as data structures passed to `client.beta.messages.create()`:
+
+```python
+mcp_servers = [
+    {"type": "url", "url": "https://mcp.linear.app/mcp", "name": "linear", "authorization_token": "..."},
+    {"type": "url", "url": "https://api.githubcopilot.com/mcp", "name": "github", "authorization_token": "..."},
+]
+
+tools = [
+    {"type": "mcp_toolset", "mcp_server_name": "linear"},
+    {"type": "mcp_toolset", "mcp_server_name": "github"},
+    {"type": "web_search_20250305", "name": "web_search"},
+]
+```
+
+### Agentic loop
+
+The runner calls `messages.create()` in a loop. Each response may contain `mcp_tool_use` and `mcp_tool_result` blocks (handled server-side by the MCP Connector) alongside `text` blocks. The loop continues until `stop_reason` is `end_turn`. A max-iteration guard prevents runaway loops.
+
+### Response content block types
+
+- `text` — Claude's reasoning and output
+- `mcp_tool_use` — tool invocation (name, server, input params)
+- `mcp_tool_result` — tool result (content, is_error flag)
+
+### Environment variables
+
+All secrets via `.env` (never committed):
+
+| Variable | Purpose |
+|----------|---------|
+| `ANTHROPIC_API_KEY` | Claude API access |
+| `LINEAR_MCP_TOKEN` | Linear MCP server OAuth token |
+| `GITHUB_MCP_TOKEN` | GitHub MCP server OAuth token |
 
 ---
 
@@ -103,13 +139,11 @@ project/
 
 | Level | Tool | Scope |
 |-------|------|-------|
-| Unit | | |
-| Integration | | |
-| E2E | | |
+| Unit | pytest | Config loading, response parsing, error handling |
+| Integration | pytest | Live API call against a real Linear issue |
 
-<!-- Add run commands:
-Run tests: `npm test` / `pytest` / etc.
--->
+Run tests: `uv run pytest`
+Lint: `uv run ruff check src/ tests/`
 
 ---
 
@@ -119,35 +153,31 @@ Run tests: `npm test` / `pytest` / etc.
 
 ```
 main                    ← production; protected
-└── feature/<slug>      ← feature work
+└── feature/<slug>      ← feature work (e.g. feature/agent-runner)
 └── fix/<slug>          ← bug fixes
 ```
-
-<!-- Document your branch naming conventions and typical flow -->
 
 ---
 
 ## Deployment
 
-<!-- How does code get from main to production?
-- Infrastructure: terraform apply / CloudFormation / etc.
-- Application: auto-deploy on merge / manual deploy / etc.
-- CI/CD: which workflows run on PR vs merge
--->
+This is a CLI tool, not a deployed service. Run locally:
+
+```bash
+uv run python -m claude_engineering_agent JAM-238
+```
 
 ---
 
 ## Common Pitfalls & Constraints
 
-<!-- Document the things that have bitten you or will bite someone new.
-     These are the hard-won lessons — keep them updated.
-
-Examples:
-- Service X has a 30s timeout that affects Y
-- Config Z must be set before first deploy
-- Region constraint on service W
-- Item size limits on data store
--->
+- **MCP Connector is beta.** Requires `betas=["mcp-client-2025-11-20"]` in every `messages.create()` call. The previous beta header (`mcp-client-2025-04-04`) is deprecated.
+- **MCP Connector only supports tools.** MCP resources and prompts are not available through the connector — only tool calls.
+- **MCP Connector requires HTTPS URLs.** All MCP server URLs must start with `https://`.
+- **OAuth tokens expire.** Linear and GitHub MCP tokens obtained via the MCP Inspector OAuth flow have limited lifetimes. If the agent fails with auth errors, re-run the OAuth flow.
+- **MCP Connector is not available on Bedrock or Vertex AI.** This project uses the direct Claude API specifically because of this.
+- **Rate limits apply per-model, per-region.** Implement exponential backoff on 429 responses.
+- **Max loop iterations.** The agentic loop must have a hard cap to prevent runaway token spend.
 
 ---
 
