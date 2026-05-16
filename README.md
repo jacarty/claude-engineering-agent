@@ -12,8 +12,8 @@ The agent doesn't follow a fixed script. Claude generates a research plan per is
 
 ```
 Python CLI
-  → Claude API (direct, not Bedrock)
-  → MCP Connector (server-side, beta mcp-client-2025-11-20):
+  → Claude API
+  → MCP Connector
       - Linear MCP (mcp.linear.app/mcp)
       - GitHub MCP (api.githubcopilot.com/mcp)
   → Claude server tool:
