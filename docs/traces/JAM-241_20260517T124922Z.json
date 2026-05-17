@@ -1,0 +1,29 @@
+{
+  "issue_id": "JAM-241",
+  "timestamp": "20260517T124922Z",
+  "total_tokens": {
+    "input": 377548,
+    "output": 4738
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "stop_reason": "end_turn",
+      "tools_called": [
+        "linear/get_issue",
+        "linear/list_comments",
+        "linear/get_issue",
+        "linear/get_issue",
+        "github/search_repositories",
+        "linear/list_issue_labels",
+        "linear/save_comment",
+        "linear/save_issue"
+      ],
+      "token_usage": {
+        "input": 377548,
+        "output": 4738
+      },
+      "duration_seconds": 423.45
+    }
+  ]
+}

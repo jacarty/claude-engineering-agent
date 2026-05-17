@@ -1,0 +1,39 @@
+{
+  "issue_id": "JAM-243",
+  "timestamp": "20260517T122231Z",
+  "total_tokens": {
+    "input": 368319,
+    "output": 5353
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "stop_reason": "end_turn",
+      "tools_called": [
+        "linear/get_issue",
+        "github/get_file_contents",
+        "linear/get_issue",
+        "linear/list_comments",
+        "github/get_file_contents",
+        "github/get_file_contents",
+        "github/get_file_contents",
+        "github/get_file_contents",
+        "github/get_file_contents",
+        "github/get_file_contents",
+        "github/search_repositories",
+        "github/get_file_contents",
+        "github/get_file_contents",
+        "github/search_repositories",
+        "github/get_file_contents",
+        "linear/list_issue_labels",
+        "linear/save_comment",
+        "linear/save_issue"
+      ],
+      "token_usage": {
+        "input": 368319,
+        "output": 5353
+      },
+      "duration_seconds": 1032.2
+    }
+  ]
+}

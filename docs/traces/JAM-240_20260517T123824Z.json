@@ -1,0 +1,32 @@
+{
+  "issue_id": "JAM-240",
+  "timestamp": "20260517T123824Z",
+  "total_tokens": {
+    "input": 474336,
+    "output": 5090
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "stop_reason": "end_turn",
+      "tools_called": [
+        "linear/get_issue",
+        "linear/list_comments",
+        "linear/get_issue",
+        "github/search_repositories",
+        "github/search_repositories",
+        "github/search_code",
+        "github/get_file_contents",
+        "linear/list_comments",
+        "linear/list_issue_labels",
+        "linear/save_comment",
+        "linear/save_issue"
+      ],
+      "token_usage": {
+        "input": 474336,
+        "output": 5090
+      },
+      "duration_seconds": 435.04
+    }
+  ]
+}
