@@ -53,6 +53,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Tests can have longer lines and unused imports for fixtures.
 "tests/**/*.py" = ["E501"]
+"src/claude_engineering_agent/prompts.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -25,7 +25,7 @@ class Config:
 
     # Model and output settings
     model: str = os.getenv("MODEL", "claude-sonnet-4-6")
-    max_tokens: int = int(os.getenv("MAX_TOKENS", "16384"))
+    max_tokens: int = int(os.getenv("MAX_TOKENS", "4096"))
     betas: list[str] = field(default_factory=lambda: ["mcp-client-2025-11-20"])
 
     def __post_init__(self):
@@ -39,8 +39,8 @@ class Config:
             raise ValueError("GITHUB_MCP_TOKEN cannot be empty. Update .env")
 
     def get_client(self) -> anthropic.Anthropic:
-        """Create the appropriate Anthropic client based on config."""
-        return anthropic.Anthropic(api_key=self.anthropic_api_key)
+        """Create the Anthropic client with retry configuration."""
+        return anthropic.Anthropic(api_key=self.anthropic_api_key, max_retries=4)
 
     def get_mcp_servers(self) -> list[dict]:
         """Return the list of MCP servers"""
