@@ -39,8 +39,8 @@ class Config:
             raise ValueError("GITHUB_MCP_TOKEN cannot be empty. Update .env")
 
     def get_client(self) -> anthropic.Anthropic:
-        """Create the appropriate Anthropic client based on config."""
-        return anthropic.Anthropic(api_key=self.anthropic_api_key)
+        """Create the Anthropic client with retry configuration."""
+        return anthropic.Anthropic(api_key=self.anthropic_api_key, max_retries=4)
 
     def get_mcp_servers(self) -> list[dict]:
         """Return the list of MCP servers"""
