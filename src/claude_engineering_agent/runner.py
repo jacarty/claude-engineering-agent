@@ -134,6 +134,8 @@ def run_agent(config: Config, issue_id: str) -> str:
         # If Claude is done, break
         if response.stop_reason == "end_turn":
             break
+        elif response.stop_reason == "pause_turn":
+            print("pause_turn — MCP Connector hit server-side limit, continuing...")
 
         # Otherwise, append the assistant response and continue
         messages.append({"role": "assistant", "content": response.content})

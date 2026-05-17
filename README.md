@@ -78,7 +78,7 @@ cp .env.example .env
 |----------|---------|--------|
 | `ANTHROPIC_API_KEY` | Claude API access | [Anthropic Console](https://console.anthropic.com/) |
 | `LINEAR_MCP_TOKEN` | Linear MCP server auth | Linear OAuth flow via [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) |
-| `GITHUB_MCP_TOKEN` | GitHub MCP server auth | GitHub OAuth flow via [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) |
+| `GITHUB_MCP_PAT` | GitHub MCP server auth | Uses GitHub PAT Token |
 
 ### Usage
 

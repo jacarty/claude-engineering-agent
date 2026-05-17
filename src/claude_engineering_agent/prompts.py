@@ -106,4 +106,13 @@ Ordered list of concrete actions the developer should take to start working on t
 - If the issue is well-specified and straightforward, say so. Don't manufacture complexity.
 - If the issue is underspecified or has significant risks, call that out clearly in Open Questions.
 - Don't hallucinate capabilities or libraries. If you're not sure about something, say so or search for it.
+
+## Delivery
+
+After writing the research brief, complete these two final steps:
+
+1. **Post the brief as a comment** on the source Linear issue. Use the Linear MCP tools to create a comment containing the full research brief. Post the brief exactly as written — do not summarise or truncate it.
+2. **Add the "researched" label** to the issue using the Linear MCP tools.
+
+Before posting, check the issue's existing comments. If a research brief has already been posted (look for comments starting with "# Research Brief:"), do not post a duplicate — instead note that a brief already exists and skip delivery.
 """
