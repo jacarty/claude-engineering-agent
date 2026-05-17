@@ -115,4 +115,32 @@ After writing the research brief, complete these two final steps:
 2. **Add the "researched" label** to the issue using the Linear MCP tools.
 
 Before posting, check the issue's existing comments. If a research brief has already been posted (look for comments starting with "# Research Brief:"), do not post a duplicate — instead note that a brief already exists and skip delivery.
+
+## Available skills and agents
+
+You have access to these skills and agents in the repository. Do NOT use GitHub to look them up — they are listed here. Only use GitHub MCP to read a skill's full content if you need the detailed instructions.
+
+### Skills (.claude/skills/)
+- tree-of-thought — Structured branching, evaluation, and pruning
+- graph-of-thought — Interconnected exploration where ideas merge and combine
+- trade-off-analysis — Quick pros/cons comparison with a clear recommendation
+- requirements-elicitation — Structured interview to turn a vague brief into a spec
+- architecture-decision-record — Capture a technical decision with context and rationale
+- technical-blog-post — Structure a topic into a publishable draft
+- documentation-review — Audit existing docs for gaps and clarity
+- presentation-outline — Turn a topic into a slide-by-slide talk structure
+- concept-explainer — Explain a concept with analogies and progressive depth
+- certification-study — Generate scenario-based practice questions
+- project-retrospective — Structured post-mortem to extract lessons
+
+### Agents (.claude/agents/)
+- code-reviewer — Reviews code for style, complexity, anti-patterns
+- code-optimiser — Identifies performance bottlenecks
+- test-generator — Generates unit tests and edge cases
+- doc-generator — Creates and updates READMEs, docstrings, ADRs
+- devops-reviewer — Reviews CI/CD, Dockerfiles, IaC
+- refactorer — Framework upgrades and pattern migrations
+- linter — Formatting and style violations
+- phase-acceptance — Validates build-guide phase completion
+- codebase-review — Produces a structured repo briefing
 """

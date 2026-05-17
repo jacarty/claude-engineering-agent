@@ -1,6 +1,7 @@
 """Run the research agent loop with streaming output and execution traces."""
 
 import json
+import re
 import sys
 import time
 from datetime import UTC, datetime
@@ -10,6 +11,64 @@ import anthropic
 
 from claude_engineering_agent.config import Config
 from claude_engineering_agent.prompts import SYSTEM_PROMPT
+
+
+def _build_skills_inventory() -> str:
+    """Read local .claude/skills/ and .claude/agents/ and build a summary."""
+    sections = []
+
+    skills_dir = Path(".claude/skills")
+    if skills_dir.exists():
+        skills = []
+        for skill_dir in sorted(skills_dir.iterdir()):
+            if skill_dir.is_dir():
+                skill_md = skill_dir / "SKILL.md"
+                if skill_md.exists():
+                    desc = _extract_frontmatter_description(skill_md)
+                    if desc:
+                        skills.append(f"- {skill_dir.name} — {desc}")
+        if skills:
+            sections.append("### Skills (.claude/skills/)\n" + "\n".join(skills))
+
+    agents_dir = Path(".claude/agents")
+    if agents_dir.exists():
+        agents = []
+        for agent_file in sorted(agents_dir.glob("*.md")):
+            desc = _extract_frontmatter_description(agent_file)
+            if desc:
+                agents.append(f"- {agent_file.stem} — {desc}")
+        if agents:
+            sections.append("### Agents (.claude/agents/)\n" + "\n".join(agents))
+
+    if not sections:
+        return ""
+
+    return (
+        "## Available skills and agents\n\n"
+        "These are already in the repository and listed below. Do not use GitHub MCP "
+        "to list or read these directories — the inventory is here. You can still use "
+        "GitHub MCP to read a specific skill's full SKILL.md if you need the detailed "
+        "instructions for your recommendation.\n\n" + "\n\n".join(sections)
+    )
+
+
+def _extract_frontmatter_description(filepath: Path) -> str:
+    """Extract the description field from YAML frontmatter."""
+    text = filepath.read_text()
+    match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
+    if not match:
+        return ""
+    frontmatter = match.group(1)
+    desc_match = re.search(r"^description:\s*>?\s*\n((?:\s+.*\n)*)", frontmatter, re.MULTILINE)
+    if desc_match:
+        # Multi-line YAML description — join and clean
+        lines = desc_match.group(1).strip().splitlines()
+        return " ".join(line.strip() for line in lines)
+    # Single-line description
+    desc_match = re.search(r"^description:\s*(.+)$", frontmatter, re.MULTILINE)
+    if desc_match:
+        return desc_match.group(1).strip()
+    return ""
 
 
 def run_agent(config: Config, issue_id: str) -> str:
