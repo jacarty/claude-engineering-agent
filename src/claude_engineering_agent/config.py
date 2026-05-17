@@ -21,7 +21,7 @@ class Config:
     # API Keys
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     linear_mcp_token: str = os.getenv("LINEAR_MCP_TOKEN", "")
-    github_mcp_token: str = os.getenv("GITHUB_MCP_PAT", "")
+    github_mcp_pat: str = os.getenv("GITHUB_MCP_PAT", "")
 
     # Model and output settings
     model: str = os.getenv("MODEL", "claude-sonnet-4-6")
@@ -35,8 +35,8 @@ class Config:
             raise ValueError("ANTHROPIC_API_KEY cannot be empty. Update .env")
         if not self.linear_mcp_token:
             raise ValueError("LINEAR_MCP_TOKEN cannot be empty. Update .env")
-        if not self.github_mcp_token:
-            raise ValueError("GITHUB_MCP_TOKEN cannot be empty. Update .env")
+        if not self.github_mcp_pat:
+            raise ValueError("GITHUB_MCP_PAT cannot be empty. Update .env")
 
     def get_client(self) -> anthropic.Anthropic:
         """Create the Anthropic client with retry configuration."""
@@ -55,7 +55,7 @@ class Config:
                 "type": "url",
                 "url": "https://api.githubcopilot.com/mcp",
                 "name": "github",
-                "authorization_token": self.github_mcp_token,
+                "authorization_token": self.github_mcp_pat,
             },
         ]
 
@@ -65,8 +65,29 @@ class Config:
         """Return the list of tools available"""
 
         tools = [
-            {"type": "mcp_toolset", "mcp_server_name": "linear"},
-            {"type": "mcp_toolset", "mcp_server_name": "github"},
+            {
+                "type": "mcp_toolset",
+                "mcp_server_name": "linear",
+                "default_config": {"defer_loading": True},
+                "configs": {
+                    "get_issue": {"defer_loading": False},
+                    "list_comments": {"defer_loading": False},
+                    "save_comment": {"defer_loading": False},
+                    "save_issue": {"defer_loading": False},
+                    "list_issue_labels": {"defer_loading": False},
+                },
+            },
+            {
+                "type": "mcp_toolset",
+                "mcp_server_name": "github",
+                "default_config": {"defer_loading": True},
+                "configs": {
+                    "get_file_contents": {"defer_loading": False},
+                    "search_code": {"defer_loading": False},
+                    "search_repositories": {"defer_loading": False},
+                    "pull_request_read": {"defer_loading": False},
+                },
+            },
             {"type": "web_search_20250305", "name": "web_search"},
         ]
 
