@@ -1,5 +1,6 @@
 """Orchestrate Claude Code implementation via the Agent SDK."""
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,5 +34,36 @@ async def run_implementation(
 
 
 def parse_phases(build_guide: str) -> list[dict]:
-    """Parse a build guide into phases. Stub for Phase 1."""
-    return []
+    """Parse a build guide into phases.
+
+    Splits on '## Phase N' or '### Phase N' headers (case-insensitive).
+    Returns a list of dicts with keys: number (int), name (str), content (str).
+    """
+    # Match ## or ### followed by "Phase" then a number, optional colon/dash, then the name
+    pattern = r"^(#{2,3})\s+phase\s+(\d+)\s*[:\-—]?\s*(.*)"
+
+    phases = []
+    current_phase = None
+
+    for line in build_guide.splitlines(keepends=True):
+        match = re.match(pattern, line, re.IGNORECASE)
+        if match:
+            # Save the previous phase if one was in progress
+            if current_phase is not None:
+                current_phase["content"] = current_phase["content"].strip()
+                phases.append(current_phase)
+
+            current_phase = {
+                "number": int(match.group(2)),
+                "name": match.group(3).strip(),
+                "content": "",
+            }
+        elif current_phase is not None:
+            current_phase["content"] += line
+
+    # Don't forget the last phase
+    if current_phase is not None:
+        current_phase["content"] = current_phase["content"].strip()
+        phases.append(current_phase)
+
+    return phases
