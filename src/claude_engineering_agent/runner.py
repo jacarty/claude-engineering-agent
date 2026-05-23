@@ -10,7 +10,7 @@ from pathlib import Path
 import anthropic
 
 from claude_engineering_agent.config import Config
-from claude_engineering_agent.prompts import SYSTEM_PROMPT
+from claude_engineering_agent.prompts import RESEARCH_PROMPT, SPEC_PROMPT
 
 
 def _build_skills_inventory() -> str:
@@ -71,22 +71,15 @@ def _extract_frontmatter_description(filepath: Path) -> str:
     return ""
 
 
-def run_agent(config: Config, issue_id: str) -> str:
-    """Research a Linear issue and return a structured brief.
-
-    Streams output to the terminal in real time so the user always
-    knows what the agent is doing. Saves a structured execution
-    trace to docs/traces/.
-    """
-    client = config.get_client()
-    messages = [{"role": "user", "content": f"Research the Linear issue {issue_id}"}]
-    max_iterations = 5
-    system = SYSTEM_PROMPT
+def _run_agent_loop(client, config, system_prompt, user_message, issue_id) -> tuple:
 
     # Accumulate trace and token totals across iterations
     trace = []
     total_input_tokens = 0
     total_output_tokens = 0
+    max_iterations = 3
+    success = False
+    messages = [{"role": "user", "content": user_message}]
 
     for iteration in range(max_iterations):
         iter_start = time.time()
@@ -108,7 +101,7 @@ def run_agent(config: Config, issue_id: str) -> str:
                 mcp_servers=config.get_mcp_servers(),
                 tools=config.get_tools(),
                 betas=config.betas,
-                system=system,
+                system=system_prompt,
             ) as stream:
                 for event in stream:
                     if event.type == "content_block_start":
@@ -127,7 +120,6 @@ def run_agent(config: Config, issue_id: str) -> str:
                                 print(text, end="", flush=True)
                                 iter_text_chunks.append(text)
                             elif delta.type == "text":
-                                # Some events use "text" directly
                                 text = getattr(delta, "text", "")
                                 if text:
                                     print(text, end="", flush=True)
@@ -192,6 +184,7 @@ def run_agent(config: Config, issue_id: str) -> str:
 
         # If Claude is done, break
         if response.stop_reason == "end_turn":
+            success = True
             break
         elif response.stop_reason == "pause_turn":
             print("pause_turn — MCP Connector hit server-side limit, continuing...")
@@ -199,12 +192,12 @@ def run_agent(config: Config, issue_id: str) -> str:
         # Otherwise, append the assistant response and continue
         messages.append({"role": "assistant", "content": response.content})
 
-    else:
+    if not success:
         print(f"\n⚠️  Max iterations ({max_iterations}) reached — agent may not have finished")
 
     # Final summary
     print(f"\n{'=' * 60}")
-    print("  Research complete")
+    print("  Agent complete")
     print(f"  Total tokens: {total_input_tokens:,} in / {total_output_tokens:,} out")
     print(f"  Iterations: {len(trace)}")
     print(f"{'=' * 60}\n")
@@ -213,7 +206,65 @@ def run_agent(config: Config, issue_id: str) -> str:
     _save_trace(issue_id, trace, total_input_tokens, total_output_tokens)
 
     # Extract final text
-    return "\n".join(block.text for block in response.content if block.type == "text")
+    output = "\n".join(block.text for block in response.content if block.type == "text")
+
+    return output, success
+
+
+def run_agent(config: Config, issue_id: str, mode: str) -> str:
+    """Takes input from CLI to return the corresponding information. Options:
+
+    - Research on a Linear issue
+    - Reseach + Spec for a Linear issue
+    - Only Spec for a Linear issue
+
+    Streams output to the terminal in real time so the user always
+    knows what the agent is doing. Saves a structured execution
+    trace to docs/traces/.
+    """
+    client = config.get_client()
+
+    if mode == "research":
+        research_text, _ = _run_agent_loop(  # _ to represent unused status in tuple
+            client,
+            config,
+            RESEARCH_PROMPT,
+            f"Research the Linear issue {issue_id}",
+            issue_id,
+        )
+        return research_text
+
+    elif mode == "spec":
+        # First: research
+        research_text, research_ok = _run_agent_loop(
+            client,
+            config,
+            RESEARCH_PROMPT,
+            f"Research the Linear issue {issue_id}",
+            issue_id,
+        )
+        if not research_ok:
+            return research_text
+
+        # Second: spec (reads the posted research brief from Linear)
+        spec_text, spec_ok = _run_agent_loop(
+            client,
+            config,
+            SPEC_PROMPT,
+            f"Generate an implementation spec for Linear issue {issue_id}",
+            issue_id,
+        )
+        return spec_text
+
+    elif mode == "spec_only":
+        spec_text, _ = _run_agent_loop(  # _ to represent unused status in tuple
+            client,
+            config,
+            SPEC_PROMPT,
+            f"Generate an implementation spec for Linear issue {issue_id}",
+            issue_id,
+        )
+        return spec_text
 
 
 def _save_trace(
