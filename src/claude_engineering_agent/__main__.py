@@ -5,11 +5,15 @@ Usage:
     uv run python -m claude_engineering_agent "JAM-XX"
     uv run python -m claude_engineering_agent "JAM-XX" --spec
     uv run python -m claude_engineering_agent "JAM-XX" --spec-only
+    uv run python -m claude_engineering_agent "JAM-XX" --implement-only
+    uv run python -m claude_engineering_agent "JAM-XX" --implement
 
 Modes:
-    (default)   Research the Linear issue only.
-    --spec      Research and generate a spec.
-    --spec-only Generate a spec without re-running research.
+    (default)       Research the Linear issue only.
+    --spec          Research and generate a spec.
+    --spec-only     Generate a spec without re-running research.
+    --implement     Research, create spec, and implement.
+    --implement-only Implement from existing build guide.
 """
 
 import argparse
@@ -19,7 +23,8 @@ import anyio
 
 from claude_engineering_agent.config import Config
 from claude_engineering_agent.implementer import run_implementation
-from claude_engineering_agent.runner import run_agent
+from claude_engineering_agent.prompts import PR_PROMPT
+from claude_engineering_agent.runner import _run_agent_loop, run_agent
 
 
 def main():
@@ -29,18 +34,25 @@ def main():
     parser.add_argument("issue_id", help="Linear issue ID (e.g. JAM-238)")
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        "--spec", help="Run Research agent and also create the Spec", action="store_true"
+        "--spec",
+        help="Run Research agent and also create the Spec",
+        action="store_true",
     )
     group.add_argument("--spec-only", help="Create Spec only", action="store_true")
     group.add_argument(
-        "--implement", help="Run Research, create Spec and Implement", action="store_true"
+        "--implement",
+        help="Run Research, create Spec and Implement",
+        action="store_true",
     )
     group.add_argument(
         "--implement-only",
         help="Implement based on existing Research and Spec",
         action="store_true",
     )
-    parser.add_argument("--build-guide", help="Implements based on a specific build guide document")
+    parser.add_argument(
+        "--build-guide",
+        help="Implements based on a specific build guide document",
+    )
     args = parser.parse_args()
 
     config = Config()
@@ -76,11 +88,27 @@ def main():
         async def _run_impl():
             return await run_implementation(config, args.issue_id, build_guide_path)
 
-        result = anyio.run(_run_impl)
+        impl_result = anyio.run(_run_impl)
+        print(impl_result)
+
+        # Create PR if all phases passed
+        if impl_result.stopped_at_phase is None and impl_result.phases_completed > 0:
+            print("\n🔀 Creating pull request...")
+            client = config.get_client()
+            pr_message = (
+                f"Create a pull request for Linear issue {args.issue_id}. "
+                f"The implementation is on branch '{impl_result.branch_name}'. "
+                f"The target base branch is 'main'."
+            )
+            pr_text, pr_ok = _run_agent_loop(client, config, PR_PROMPT, pr_message, args.issue_id)
+            if pr_ok:
+                print(pr_text)
+            else:
+                print("⚠️  PR creation did not complete successfully.")
+                print(pr_text)
     else:
         result = run_agent(config, args.issue_id, mode)
-
-    print(result)
+        print(result)
 
 
 if __name__ == "__main__":
