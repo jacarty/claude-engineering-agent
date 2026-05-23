@@ -17,6 +17,8 @@ Modes:
 """
 
 import argparse
+import re
+import subprocess
 from pathlib import Path
 
 import anyio
@@ -94,10 +96,23 @@ def main():
         # Create PR if all phases passed
         if impl_result.stopped_at_phase is None and impl_result.phases_completed > 0:
             print("\n🔀 Creating pull request...")
+
+            # Discover repo slug from git remote
+            remote_result = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            remote_url = remote_result.stdout.strip()
+            match = re.search(r"[:/]([^/]+/[^/]+?)(?:\.git)?$", remote_url)
+            repo_slug = match.group(1) if match else "unknown/unknown"
+
             client = config.get_client()
             pr_message = (
                 f"Create a pull request for Linear issue {args.issue_id}. "
-                f"The implementation is on branch '{impl_result.branch_name}'. "
+                f"The implementation is on branch '{impl_result.branch_name}' "
+                f"in the GitHub repository '{repo_slug}'. "
                 f"The target base branch is 'main'."
             )
             pr_text, pr_ok = _run_agent_loop(client, config, PR_PROMPT, pr_message, args.issue_id)

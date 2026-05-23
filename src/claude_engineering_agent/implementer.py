@@ -457,11 +457,18 @@ async def run_implementation(
             break
 
     else:
-        # All phases completed successfully
+        # All phases completed successfully — push the branch
+        subprocess.run(
+            ["git", "push", "-u", "origin", branch_name],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         print(f"\n{'=' * 60}")
         print(f"  ✅ All {len(phases)} phases complete!")
+        print(f"  Branch '{branch_name}' pushed to origin.")
         print(f"  Total cost: ${total_cost:.4f}")
-        print(f"  Review the branch '{branch_name}' before opening a PR.")
         print(f"{'=' * 60}\n")
 
     # --- Save trace ---
