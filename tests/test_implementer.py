@@ -1,6 +1,6 @@
 """Tests for the implementer module."""
 
-from claude_engineering_agent.implementer import parse_phases
+from claude_engineering_agent.implementer import _parse_verdict, parse_phases
 
 
 class TestParsePhases:
@@ -120,3 +120,57 @@ Content B.
 
     def test_empty_string(self):
         assert parse_phases("") == []
+
+
+class TestParseVerdict:
+    """Tests for _parse_verdict()."""
+
+    def test_pass(self):
+        text = """### Phase 1: Setup — Acceptance Report
+
+**Status: ✅ PASS**
+
+All requirements met."""
+        assert _parse_verdict(text) is True
+
+    def test_fail(self):
+        text = """### Phase 1: Setup — Acceptance Report
+
+**Status: ❌ FAIL**
+
+Missing items:
+- Unit tests not found"""
+        assert _parse_verdict(text) is False
+
+    def test_no_verdict(self):
+        text = "Some random text with no verdict markers."
+        assert _parse_verdict(text) is False
+
+    def test_empty_string(self):
+        assert _parse_verdict("") is False
+
+    def test_pass_in_longer_output(self):
+        text = """Checking requirements...
+Requirement 1: ✅
+Requirement 2: ✅
+Requirement 3: ✅
+
+### Verdict
+
+**Status: ✅ PASS**
+
+All 3 requirements satisfied."""
+        assert _parse_verdict(text) is True
+
+    def test_fail_after_partial_passes(self):
+        text = """Checking requirements...
+Requirement 1: PASS
+Requirement 2: PASS
+Requirement 3: FAIL
+
+### Verdict
+
+**Status: ❌ FAIL**
+
+1 of 3 requirements not met."""
+        assert _parse_verdict(text) is False
