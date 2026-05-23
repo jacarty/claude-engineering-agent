@@ -31,6 +31,7 @@ def main():
     """Parse CLI arguments, resolve the run mode, and execute the agent."""
 
     parser = argparse.ArgumentParser(description="CLI entry point for the Claude Engineering Agent")
+    parser.add_argument("--version", action="version", version="0.1.0")
     parser.add_argument("issue_id", help="Linear issue ID (e.g. JAM-238)")
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
