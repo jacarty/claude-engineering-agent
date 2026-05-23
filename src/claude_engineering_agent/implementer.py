@@ -25,7 +25,7 @@ from claude_engineering_agent.config import Config
 
 def _create_branch(issue_id: str, repo_root: Path) -> str:
     """Create a feature branch, or switch to it if it already exists."""
-    branch_name = f"feat/{issue_id}"
+    branch_name = f"feat/{issue_id.lower()}"
     try:
         subprocess.run(
             ["git", "checkout", "-b", branch_name],
@@ -143,7 +143,8 @@ Instructions:
 2. After completing the implementation, follow the pre-PR agent cadence
    described in docs/process.md — run the appropriate agents based on
    what you changed and fold their findings into your work.
-3. Commit your work with a clear commit message referencing Phase {phase_num}.
+3. Do NOT run git add, git commit, or git push — the pipeline handles
+   all git operations automatically after your work is complete.
 """
 
     if attempt > 1 and rejection_feedback:
@@ -329,6 +330,7 @@ class ImplementationResult:
     stopped_at_phase: int | None
     total_cost_usd: float
     branch_name: str
+    branch_pushed: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -400,6 +402,7 @@ async def run_implementation(
     stopped_at_phase = None
     phases_trace = []
     max_attempts = 2
+    branch_pushed = False
 
     for phase in phases:
         phase_num = phase["number"]
@@ -412,6 +415,30 @@ async def run_implementation(
                 phase, build_guide_path, repo_root, attempt, rejection_feedback
             )
             total_cost += impl_cost
+
+            # --- Commit implementation changes ---
+            subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True)
+            status = subprocess.run(
+                ["git", "diff", "--cached", "--quiet"],
+                cwd=repo_root,
+                capture_output=True,
+            )
+            if status.returncode != 0:
+                subprocess.run(
+                    [
+                        "git",
+                        "commit",
+                        "-m",
+                        f"feat: phase {phase_num} - {phase['name']}",
+                    ],
+                    cwd=repo_root,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                print(f"  Committed Phase {phase_num} changes")
+            else:
+                print(f"  No uncommitted changes after Phase {phase_num}")
 
             # --- Acceptance turn ---
             passed, verdict_text, accept_cost = await _run_acceptance(
@@ -457,22 +484,36 @@ async def run_implementation(
             break
 
     else:
-        # All phases completed successfully — push the branch
-        subprocess.run(
-            ["git", "push", "-u", "origin", branch_name],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        print(f"\n{'=' * 60}")
-        print(f"  ✅ All {len(phases)} phases complete!")
-        print(f"  Branch '{branch_name}' pushed to origin.")
-        print(f"  Total cost: ${total_cost:.4f}")
-        print(f"{'=' * 60}\n")
+        # All phases completed successfully — save trace and push
+        _save_impl_trace(issue_id, phases_trace, total_cost)
 
-    # --- Save trace ---
-    _save_impl_trace(issue_id, phases_trace, total_cost)
+        # Push the branch
+        try:
+            subprocess.run(
+                ["git", "push", "-u", "origin", branch_name],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            branch_pushed = True
+            print(f"\n{'=' * 60}")
+            print(f"  ✅ All {len(phases)} phases complete!")
+            print(f"  Branch '{branch_name}' pushed to origin.")
+            print(f"  Total cost: ${total_cost:.4f}")
+            print(f"{'=' * 60}\n")
+        except subprocess.CalledProcessError as e:
+            branch_pushed = False
+            print(f"\n{'=' * 60}")
+            print(f"  ✅ All {len(phases)} phases complete!")
+            print(f"  ⚠️  Failed to push branch: {e.stderr.strip()}")
+            print(f"  Push manually: git push -u origin {branch_name}")
+            print(f"  Total cost: ${total_cost:.4f}")
+            print(f"{'=' * 60}\n")
+
+    # Save trace for failed runs too (already saved above for success)
+    if stopped_at_phase is not None:
+        _save_impl_trace(issue_id, phases_trace, total_cost)
 
     return ImplementationResult(
         issue_id=issue_id,
@@ -480,6 +521,7 @@ async def run_implementation(
         stopped_at_phase=stopped_at_phase,
         total_cost_usd=total_cost,
         branch_name=branch_name,
+        branch_pushed=branch_pushed,
     )
 
 

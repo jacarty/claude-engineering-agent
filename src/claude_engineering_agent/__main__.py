@@ -17,7 +17,6 @@ Modes:
 """
 
 import argparse
-import re
 import subprocess
 from pathlib import Path
 
@@ -25,8 +24,7 @@ import anyio
 
 from claude_engineering_agent.config import Config
 from claude_engineering_agent.implementer import run_implementation
-from claude_engineering_agent.prompts import PR_PROMPT
-from claude_engineering_agent.runner import _run_agent_loop, run_agent
+from claude_engineering_agent.runner import run_agent
 
 
 def main():
@@ -34,6 +32,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="CLI entry point for the Claude Engineering Agent")
     parser.add_argument("issue_id", help="Linear issue ID (e.g. JAM-238)")
+    parser.add_argument("--version", action="version", version="0.1.0")
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--spec",
@@ -53,7 +52,7 @@ def main():
     )
     parser.add_argument(
         "--build-guide",
-        help="Implements based on a specific build guide document",
+        help="Path to a specific build guide document",
     )
     args = parser.parse_args()
 
@@ -93,34 +92,54 @@ def main():
         impl_result = anyio.run(_run_impl)
         print(impl_result)
 
-        # Create PR if all phases passed
-        if impl_result.stopped_at_phase is None and impl_result.phases_completed > 0:
+        # Create PR if all phases passed and branch was pushed
+        if (
+            impl_result.stopped_at_phase is None
+            and impl_result.phases_completed > 0
+            and impl_result.branch_pushed
+        ):
             print("\n🔀 Creating pull request...")
-
-            # Discover repo slug from git remote
-            remote_result = subprocess.run(
-                ["git", "remote", "get-url", "origin"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            remote_url = remote_result.stdout.strip()
-            match = re.search(r"[:/]([^/]+/[^/]+?)(?:\.git)?$", remote_url)
-            repo_slug = match.group(1) if match else "unknown/unknown"
-
-            client = config.get_client()
-            pr_message = (
-                f"Create a pull request for Linear issue {args.issue_id}. "
-                f"The implementation is on branch '{impl_result.branch_name}' "
-                f"in the GitHub repository '{repo_slug}'. "
-                f"The target base branch is 'main'."
-            )
-            pr_text, pr_ok = _run_agent_loop(client, config, PR_PROMPT, pr_message, args.issue_id)
-            if pr_ok:
-                print(pr_text)
-            else:
-                print("⚠️  PR creation did not complete successfully.")
-                print(pr_text)
+            try:
+                pr_result = subprocess.run(
+                    [
+                        "gh",
+                        "pr",
+                        "create",
+                        "--head",
+                        impl_result.branch_name,
+                        "--base",
+                        "main",
+                        "--title",
+                        f"feat: {args.issue_id} implementation",
+                        "--body",
+                        (
+                            f"## What\n\n"
+                            f"Implementation of {args.issue_id}\n\n"
+                            f"## Pipeline\n\n"
+                            f"Automated via Claude Engineering Agent "
+                            f"(`--implement-only`):\n"
+                            f"- Phases completed: "
+                            f"{impl_result.phases_completed}\n"
+                            f"- Total cost: "
+                            f"${impl_result.total_cost_usd:.2f}\n\n"
+                            f"Closes {args.issue_id}"
+                        ),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                print(f"✅ PR created: {pr_result.stdout.strip()}")
+            except FileNotFoundError:
+                print("⚠️  `gh` CLI not found. Install it: https://cli.github.com")
+                print(
+                    f"  Create manually: gh pr create --head {impl_result.branch_name} --base main"
+                )
+            except subprocess.CalledProcessError as e:
+                print(f"⚠️  PR creation failed: {e.stderr.strip()}")
+                print(
+                    f"  Create manually: gh pr create --head {impl_result.branch_name} --base main"
+                )
     else:
         result = run_agent(config, args.issue_id, mode)
         print(result)
