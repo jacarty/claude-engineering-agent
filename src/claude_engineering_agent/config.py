@@ -1,17 +1,25 @@
 """
 Configuration and Anthropic client factory.
 
-Loads settings from .env and provides a get_client() function that returns
-the Anthropic client, MCP servers and tools.
+Loads settings from environment variables, with optional overrides from
+~/.config/claude-agent/.env (global) and ./.env (local). Local wins.
 """
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import anthropic
-from dotenv import load_dotenv
 
-load_dotenv()
+# Load in reverse priority order with override=True so each layer wins:
+# 1. Environment variables (already set, lowest priority)
+# 2. Global config (overrides env vars)
+# 3. Local .env (overrides everything)
+from dotenv import find_dotenv, load_dotenv
+
+_global_env = Path.home() / ".config" / "claude-agent" / ".env"
+load_dotenv(_global_env, override=True)
+load_dotenv(find_dotenv(usecwd=True), override=True)
 
 
 @dataclass

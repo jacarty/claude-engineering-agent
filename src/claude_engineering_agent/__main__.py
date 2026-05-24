@@ -2,11 +2,11 @@
 CLI entry point for the Claude Engineering Agent
 
 Usage:
-    uv run python -m claude_engineering_agent "JAM-XX"
-    uv run python -m claude_engineering_agent "JAM-XX" --spec
-    uv run python -m claude_engineering_agent "JAM-XX" --spec-only
-    uv run python -m claude_engineering_agent "JAM-XX" --implement-only
-    uv run python -m claude_engineering_agent "JAM-XX" --implement
+    claude-agent "JAM-XX"
+    claude-agent "JAM-XX" --spec
+    claude-agent "JAM-XX" --spec-only
+    claude-agent "JAM-XX" --implement-only
+    claude-agent "JAM-XX" --implement
 
 Modes:
     (default)       Research the Linear issue only.
@@ -18,12 +18,14 @@ Modes:
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 
 import anyio
 
 from claude_engineering_agent.config import Config
 from claude_engineering_agent.implementer import run_implementation
+from claude_engineering_agent.repo import RepoDiscoveryError, discover_repo
 from claude_engineering_agent.runner import run_agent
 
 
@@ -54,6 +56,13 @@ def main():
         help="Path to a specific build guide document",
     )
     args = parser.parse_args()
+
+    # Validate we're in a git repo before doing anything else
+    try:
+        discover_repo()
+    except RepoDiscoveryError as e:
+        print(f"❌ {e}")
+        sys.exit(1)
 
     config = Config()
     build_guide_path = (

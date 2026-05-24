@@ -12,6 +12,9 @@ dependencies = [
     "anyio>=4.0",
 ]
 
+[project.scripts]
+claude-agent = "claude_engineering_agent.__main__:main"
+
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.0",
