@@ -1,17 +1,16 @@
 # claude-engineering-agent
 
-An adaptive research agent that takes a Linear issue, investigates it using multiple tools, and produces a contextualised technical brief — posted back to Linear as a comment.
+An adaptive engineering agent that takes a Linear issue, investigates it using multiple tools, and produces a contextualised technical brief — posted back to Linear as a comment. It then generates an implementation spec, hands off to Claude Code for building, and creates a PR.
 
-The agent doesn't follow a fixed script. Claude decides what to research based on the issue content, calls the right tools, evaluates intermediate results, and adapts. Findings are grounded against the repo's own skills and templates, so output is contextualised to the developer's ecosystem rather than generic advice.
+The agent doesn't follow a fixed script. Claude decides what to research based on the issue content, calls the right tools, evaluates intermediate results, and adapts. Findings are grounded against the target repo's own skills and templates, so output is contextualised to the developer's ecosystem rather than generic advice.
 
-**Phase 1 (complete):** Adaptive research agent — issue → research → structured brief → Linear comment.
-
-**Phase 2 (in progress):** Full engineering pipeline — issue → research → PRD → build guide → Claude Code handoff → implementation → PR.
+**Repo-agnostic:** Install once, run from any git repository. The agent discovers the repo context (owner, name, skills, agents) from cwd — no configuration per repo needed.
 
 ## Example run
 
 ```
-$ uv run python -m claude_engineering_agent JAM-238
+$ cd ~/projects/my-app
+$ claude-agent JAM-238
 
 Researching JAM-238 with model claude-sonnet-4-6
 
@@ -89,7 +88,7 @@ The MCP Connector discovers all available tools on each server. Linear has 35+ t
 
 ### 2. Local skills inventory
 
-The repo contains 11 skills and 9 agents in `.claude/skills/` and `.claude/agents/`. Instead of the agent discovering these via GitHub MCP calls every run, the runner reads the local filesystem at startup, extracts descriptions from YAML frontmatter, and injects the inventory into the system prompt. Claude only uses GitHub MCP to read a skill's full content when it's genuinely needed for the recommendation.
+If the target repo contains `.claude/skills/` and `.claude/agents/`, the runner reads descriptions from YAML frontmatter at startup and injects the inventory into the system prompt. Claude only uses GitHub MCP to read a skill's full content when genuinely needed. If the target repo has no skills or agents, the agent works without them.
 
 ## Dogfooding results
 
@@ -125,15 +124,37 @@ Tested against 6 sub-issues of the FCA Regulatory RAG Eval project (JAM-237), sp
 
 ### Installation
 
+**Option A: Global CLI tool (recommended)**
+
+Install once, use from any repo:
+
+```bash
+uv tool install git+https://github.com/jacarty/claude-engineering-agent
+```
+
+**Option B: From source (for development)**
+
 ```bash
 git clone https://github.com/jacarty/claude-engineering-agent.git
 cd claude-engineering-agent
 uv sync
-cp .env.example .env
-# Edit .env with your API keys and tokens
 ```
 
 ### Environment variables
+
+The agent looks for `.env` files in this priority order (local wins):
+
+1. `.env` in the current working directory
+2. `~/.config/claude-agent/.env` (global config)
+3. Environment variables already set in your shell
+
+For a global install, create `~/.config/claude-agent/.env`:
+
+```bash
+mkdir -p ~/.config/claude-agent
+cp .env.example ~/.config/claude-agent/.env
+# Edit with your API keys and tokens
+```
 
 | Variable | Purpose | Source |
 |----------|---------|--------|
@@ -144,10 +165,32 @@ cp .env.example .env
 ### Usage
 
 ```bash
+# cd into any git repo with an origin remote
+cd ~/projects/my-app
+
+# Research a Linear issue
+claude-agent JAM-238
+
+# Research and generate an implementation spec
+claude-agent JAM-238 --spec
+
+# Generate a spec only (research brief must already exist)
+claude-agent JAM-238 --spec-only
+
+# Full pipeline: research → spec → implement → PR
+claude-agent JAM-238 --implement
+
+# Implement from an existing build guide
+claude-agent JAM-238 --implement-only
+```
+
+If running from source instead of a global install:
+
+```bash
 uv run python -m claude_engineering_agent JAM-238
 ```
 
-### Git hooks
+### Git hooks (for development on this repo)
 
 ```bash
 uv run pre-commit install
@@ -173,9 +216,11 @@ claude-engineering-agent/
 │   └── claude_engineering_agent/
 │       ├── __init__.py
 │       ├── __main__.py          # CLI entry point
-│       ├── config.py            # MCP server + tool configuration
-│       ├── prompts.py           # System prompt (the planning engine)
-│       └── runner.py            # Streaming agentic loop
+│       ├── config.py            # Environment loading, MCP server + tool configuration
+│       ├── implementer.py       # Claude Code orchestration (phase loop + acceptance)
+│       ├── prompts.py           # System prompt builders (dynamic repo context)
+│       ├── repo.py              # Git remote discovery (owner, name, URL)
+│       └── runner.py            # Streaming agentic loop with traces
 ├── tests/
 ├── pyproject.toml
 ├── .env.example
@@ -183,20 +228,17 @@ claude-engineering-agent/
 └── README.md
 ```
 
-## Future: full engineering pipeline
+## Pipeline
 
-Phase 2 extends the agent from a research tool to a complete issue → code pipeline:
+The agent supports progressive modes that build on each other:
 
-```
-Linear issue
-  → Research brief (phase 1 — done)
-  → PRD generation (--prd)
-  → Build guide generation (--build-guide)
-  → Claude Code handoff (--implement)
-  → PR creation (--full)
-```
+| Mode | Flag | Output |
+|------|------|--------|
+| Research | (default) | Research brief → Linear comment |
+| Spec | `--spec` | Research + implementation spec → Linear comments |
+| Implement | `--implement` | Research + spec + Claude Code execution → PR |
 
-Each step reads the previous step's output from Linear comments, so the pipeline is stateless — any step can be run independently if the prerequisites exist. The subagent ecosystem (code-reviewer, test-generator, phase-acceptance) gates each phase of Claude Code's implementation.
+Each step reads the previous step's output from Linear comments, so the pipeline is stateless — any step can be run independently with `--*-only` flags if prerequisites exist. The subagent ecosystem (code-reviewer, test-generator, phase-acceptance) gates each phase of Claude Code's implementation.
 
 ## Licence
 

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-An adaptive research agent that reads Linear issues and produces contextualised technical briefs using Claude's MCP Connector, web search, and the repo's own skills/templates. Built as a Python CLI. Phase 2 extends to PRD generation, build guide generation, Claude Code handoff, and PR creation.
+An adaptive engineering agent that reads Linear issues and produces contextualised technical briefs, implementation specs, and automated PRs using Claude's MCP Connector, web search, and the target repo's own skills/templates. Built as a Python CLI tool — install once, run from any git repository.
 
 **Process:** `docs/process.md` — branch/PR cadence, pre-commit + pre-PR agent gates, trivial-change fast path, phase-boundary rituals. Read this before any feature work.
 
@@ -26,7 +26,10 @@ These are non-negotiable. They apply to every session regardless of scope.
 ## Architecture
 
 ```
-Python CLI (src/claude_engineering_agent/)
+Python CLI — installable via `uv tool install`, runs from any git repo
+  → repo.py discovers target repo (owner, name) from git remote
+  → runner.py reads .claude/skills/ and .claude/agents/ from cwd
+  → prompts.py injects repo context and skills into system prompt
   → Claude API (direct, beta mcp-client-2025-11-20)
   → MCP Connector (server-side):
       - Linear MCP (mcp.linear.app/mcp) — read issues, post comments, update status/labels
@@ -34,15 +37,17 @@ Python CLI (src/claude_engineering_agent/)
   → Claude server tool:
       - Web search (web_search_20250305)
   → Streaming agentic loop (call until stop_reason is end_turn)
-  → Research brief posted to Linear as comment
+  → Output posted to Linear as comment
 ```
 
 ### Key architecture decisions
 
+- **Repo-agnostic CLI** — the agent discovers everything from cwd: repo owner/name from `git remote`, skills/agents from `.claude/`, and `.env` from the local directory or `~/.config/claude-agent/.env`.
 - **MCP Connector (server-side)** over client-side MCP — Anthropic's infrastructure handles connection, tool discovery, and execution. No MCP Python SDK needed.
 - **Streaming** (`messages.stream()`) over blocking (`messages.create()`) — real-time visibility into tool calls and reasoning.
 - **Deferred tool loading** — only eagerly load the ~10 tools the agent uses, not the 70+ available across Linear and GitHub.
-- **Local skills inventory** — read `.claude/skills/` and `.claude/agents/` from the local filesystem at startup, inject into the system prompt. Eliminates GitHub MCP calls for directory listings.
+- **Local skills inventory** — read `.claude/skills/` and `.claude/agents/` from the target repo's filesystem at startup, inject into the system prompt. Eliminates GitHub MCP calls for directory listings. Works with any repo's skills, not just this one.
+- **Dynamic prompt building** — `prompts.py` exports builder functions (`build_research_prompt`, `build_spec_prompt`) that accept repo context and skills inventory as parameters. No hardcoded repo references.
 - **Prompt-driven delivery** — Claude posts the brief and adds labels via Linear MCP within the same agentic loop. No separate Python delivery step.
 
 ### Key technology choices
@@ -51,8 +56,8 @@ Python CLI (src/claude_engineering_agent/)
 - **Package manager:** uv
 - **API client:** anthropic (Python SDK), max_retries=4
 - **MCP integration:** MCP Connector (server-side via `mcp_servers` parameter)
-- **CLI:** `python -m claude_engineering_agent` with argparse
-- **Config:** python-dotenv for environment variables
+- **CLI:** `claude-agent` via `[project.scripts]` entry point, argparse
+- **Config:** python-dotenv with fallback chain (cwd → `~/.config/claude-agent/` → env vars)
 - **Testing:** pytest
 - **Linting:** ruff
 
@@ -80,9 +85,11 @@ claude-engineering-agent/
 ├── src/
 │   └── claude_engineering_agent/
 │       ├── __init__.py
-│       ├── __main__.py              # CLI entry point (argparse)
-│       ├── config.py                # MCP server + tool configuration, client factory
-│       ├── prompts.py               # System prompt (the planning engine)
+│       ├── __main__.py              # CLI entry point (argparse, RepoDiscoveryError handling)
+│       ├── config.py                # .env fallback chain, MCP server + tool config, client factory
+│       ├── implementer.py           # Claude Code orchestration (phase loop + acceptance)
+│       ├── prompts.py               # System prompt builders (dynamic repo context injection)
+│       ├── repo.py                  # Git remote discovery (owner, name, URL parsing)
 │       └── runner.py                # Streaming agentic loop with traces and error handling
 └── tests/
 ```
@@ -90,6 +97,23 @@ claude-engineering-agent/
 ---
 
 ## Key Patterns
+
+### Repo discovery
+
+`repo.py:discover_repo()` parses `git remote get-url origin` to extract the repo owner and name. Handles both HTTPS and SSH remote formats. Raises `RepoDiscoveryError` if cwd is not a git repo or has no origin remote — caught in `__main__.py` for a clean exit message.
+
+### .env fallback chain
+
+`config.py` loads environment variables in priority order (local wins):
+
+1. `~/.config/claude-agent/.env` with `override=True`
+2. cwd `.env` with `override=True` (via `find_dotenv(usecwd=True)`)
+
+Uses `find_dotenv(usecwd=True)` because `load_dotenv()` without it searches from the module's file location — which is `~/.local/share/uv/tools/...` when installed as a global tool.
+
+### Dynamic prompt building
+
+`prompts.py` exports `build_research_prompt()` and `build_spec_prompt()` — functions that accept `owner`, `repo_name`, and `skills_inventory` as parameters. The base instructions are built dynamically with the target repo's context injected. No hardcoded repo references anywhere in the prompts.
 
 ### MCP Connector configuration
 
@@ -101,7 +125,7 @@ The runner calls `client.beta.messages.stream()` in a loop. Events are processed
 
 ### Local skills inventory
 
-`runner.py:_build_skills_inventory()` reads `.claude/skills/` and `.claude/agents/` at startup, extracts `description` from YAML frontmatter, and injects a summary into the system prompt. This eliminates GitHub MCP calls for skill discovery.
+`runner.py:_build_skills_inventory()` reads `.claude/skills/` and `.claude/agents/` from cwd at startup, extracts `description` from YAML frontmatter, and returns a formatted string. This is injected into the system prompt by the builder functions. If the target repo has no skills or agents, an empty string is returned and the prompt notes their absence.
 
 ### Response content block types
 
@@ -125,7 +149,7 @@ All secrets via `.env` (never committed):
 
 | Level | Tool | Scope |
 |-------|------|-------|
-| Unit | pytest | Config loading, response parsing, skills inventory |
+| Unit | pytest | Config loading, response parsing, skills inventory, repo discovery |
 | Integration | pytest | Live API call against a real Linear issue |
 
 Run tests: `uv run pytest`
@@ -152,23 +176,22 @@ main                    ← production; protected
 - **OAuth tokens expire.** If the agent fails with auth errors, re-run the OAuth flow via MCP Inspector.
 - **MCP Connector is not available on Bedrock or Vertex AI.** This project uses the direct Claude API.
 - **Rate limits apply per-model, per-region.** SDK handles retries with `max_retries=4`.
-- **Max loop iterations.** Hard cap at 5 to prevent runaway token spend.
+- **Max loop iterations.** Hard cap at 3 to prevent runaway token spend.
 - **`pause_turn` stop reason.** The MCP Connector may return this if it hits its server-side iteration limit. The runner treats it as a continuation.
-- **Run from the repo root.** The skills inventory reads `.claude/skills/` relative to the working directory.
+- **`load_dotenv` + global tool install.** `load_dotenv()` without `usecwd=True` on `find_dotenv` searches from the module's file location, not cwd. When installed via `uv tool install`, the module lives in `~/.local/share/uv/tools/...` — use `find_dotenv(usecwd=True)`.
+- **`uv tool install --force` uses cached builds.** Run `uv cache clean claude-engineering-agent` before reinstalling to pick up source changes.
 
 ---
 
-## Phase 2 Roadmap
+## Pipeline Modes
 
-Phase 2 extends the pipeline with CLI flags that build progressively:
-
-| Flag | Input | Output |
-|------|-------|--------|
-| (default) | Issue ID | Research brief → Linear comment |
-| `--prd` | Issue ID | Research + PRD → Linear comments |
-| `--build-guide` | Issue ID | Research + PRD + build guide → Linear comments |
-| `--implement` | Issue ID | Research + PRD + build guide + Claude Code execution |
-| `--full` | Issue ID | Full pipeline through to PR creation |
+| Mode | Flag | Output |
+|------|------|--------|
+| Research | (default) | Research brief → Linear comment |
+| Spec | `--spec` | Research + implementation spec → Linear comments |
+| Spec only | `--spec-only` | Spec from existing research → Linear comment |
+| Implement | `--implement` | Research + spec + Claude Code execution → PR |
+| Implement only | `--implement-only` | Claude Code from existing build guide → PR |
 
 Each step reads the previous step's output from Linear comments. Any step can be run independently with `--*-only` flags if prerequisites exist.
 
