@@ -10,7 +10,8 @@ from pathlib import Path
 import anthropic
 
 from claude_engineering_agent.config import Config
-from claude_engineering_agent.prompts import RESEARCH_PROMPT, SPEC_PROMPT
+from claude_engineering_agent.prompts import build_research_prompt, build_spec_prompt
+from claude_engineering_agent.repo import discover_repo
 
 
 def _build_skills_inventory() -> str:
@@ -224,11 +225,17 @@ def run_agent(config: Config, issue_id: str, mode: str) -> str:
     """
     client = config.get_client()
 
+    repo = discover_repo()
+    skills_inventory = _build_skills_inventory()
+
+    research_prompt = build_research_prompt(repo.owner, repo.name, skills_inventory)
+    spec_prompt = build_spec_prompt(repo.owner, repo.name, skills_inventory)
+
     if mode == "research":
         research_text, _ = _run_agent_loop(  # _ to represent unused status in tuple
             client,
             config,
-            RESEARCH_PROMPT,
+            research_prompt,
             f"Research the Linear issue {issue_id}",
             issue_id,
         )
@@ -239,7 +246,7 @@ def run_agent(config: Config, issue_id: str, mode: str) -> str:
         research_text, research_ok = _run_agent_loop(
             client,
             config,
-            RESEARCH_PROMPT,
+            research_prompt,
             f"Research the Linear issue {issue_id}",
             issue_id,
         )
@@ -250,7 +257,7 @@ def run_agent(config: Config, issue_id: str, mode: str) -> str:
         spec_text, spec_ok = _run_agent_loop(
             client,
             config,
-            SPEC_PROMPT,
+            spec_prompt,
             f"Generate an implementation spec for Linear issue {issue_id}",
             issue_id,
         )
@@ -260,7 +267,7 @@ def run_agent(config: Config, issue_id: str, mode: str) -> str:
         spec_text, _ = _run_agent_loop(  # _ to represent unused status in tuple
             client,
             config,
-            SPEC_PROMPT,
+            spec_prompt,
             f"Generate an implementation spec for Linear issue {issue_id}",
             issue_id,
         )
